@@ -20,7 +20,7 @@
 
 #include <algorithm>
 
-jack_port_t *output_port1, *output_port2;
+jack_port_t* output_port1;
 jack_client_t* client;
 
 #ifndef M_PI
@@ -46,22 +46,18 @@ static void signal_handler(int sig) {
  *
  * This client follows a simple rule: when the JACK transport is
  * running, copy the input port to the output.  When it stops, exit.
+ *
+ *
+ * @note Make sure you add yourself to the group before trying to connect to
+ * jack, "usermod -a -G audio theusername"
  */
 
 int process(jack_nframes_t nframes, void* arg) {
   jack_default_audio_sample_t *out1, *out2;
   paTestData* data = (paTestData*)arg;
-  int i;
-
   out1 =
       (jack_default_audio_sample_t*)jack_port_get_buffer(output_port1, nframes);
-  out2 =
-      (jack_default_audio_sample_t*)jack_port_get_buffer(output_port2, nframes);
 
-  std::vector<float> datums{};
-
-  float out2_sum = 0;
-  float out1_sum = 0;
   float maxValue = 0;
 
   float maxAmplitude = 0x7fffffff;
@@ -72,35 +68,17 @@ int process(jack_nframes_t nframes, void* arg) {
 
   float minAmplitude = 0;
 
-  //  printf();
-
-  for (i = 0; i < nframes; i++) {
-    //    out1[i] = data->sine[data->left_phase];  /* left */
-    //    out2[i] = data->sine[data->right_phase]; /* right */
-    //    out1_sum += out1[i];
-    //    out2_sum += out2[i];
-    //    data->left_phase += 1;
-    //    if (data->left_phase >= TABLE_SIZE) data->left_phase -= TABLE_SIZE;
-    //    data->right_phase +=
-    //        3; /* higher pitch so we can distinguish left and right. */
-    //    if (data->right_phase >= TABLE_SIZE) data->right_phase -= TABLE_SIZE;
-
-    //    datums.push_back(data->sine[i]);
-    maxValue = std::max(maxValue, *out1);
+  for (unsigned int i = 0; i < nframes; i++) {
+    maxValue = out1[0] > maxValue ? out1[0] : maxValue;
+    printf("raw value:%f\n", out1[i]);
+    printf("maxValue:%f\n", maxValue);
   }
   maxValue = std::min(maxValue, maxAmplitude);
   captureValue = (maxValue) / maxAmplitude;
   // When we say "deviceLevel", what we really mean is Peak Amplitude.
   deviceLevel = captureValue - minAmplitude;
 
-  printf("valuue:%f\n", deviceLevel);
-
-  //  for (i = 0; i < nframes; i++) {
-  //    datums.push_back(out2[i]);
-  //  }
-
-  //  printf("out1: %.9f\n", out1_sum);
-  //  printf("out2 %f\n", std::pow(2, (out2_sum / nframes) / 10));
+  printf("level:%f\n", deviceLevel);
 
   return 0;
 }
@@ -181,10 +159,7 @@ int main(int argc, char* argv[]) {
   output_port1 = jack_port_register(client, "output1", JACK_DEFAULT_AUDIO_TYPE,
                                     JackPortIsInput, 0);
 
-  output_port2 = jack_port_register(client, "output2", JACK_DEFAULT_AUDIO_TYPE,
-                                    JackPortIsInput, 0);
-
-  if ((output_port1 == NULL) || (output_port2 == NULL)) {
+  if (output_port1 == NULL) {
     fprintf(stderr, "no more JACK ports available\n");
     exit(1);
   }
@@ -213,10 +188,6 @@ int main(int argc, char* argv[]) {
   }
 
   if (jack_connect(client, ports[0], jack_port_name(output_port1))) {
-    fprintf(stderr, "cannot connect output ports\n");
-  }
-
-  if (jack_connect(client, jack_port_name(output_port2), ports[1])) {
     fprintf(stderr, "cannot connect output ports\n");
   }
 
