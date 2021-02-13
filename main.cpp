@@ -1,7 +1,7 @@
-/** @file simple_client.c
- *
- * @brief This simple client demonstrates the basic features of JACK
- * as they would be used by many applications.
+/**
+ * @brief This simple client gets the volume from the input sound device, such
+ * as a audio interface. It essentially calculates Peak Amplitue of the Sin
+ * Waves(the audio samples).
  */
 
 #include <errno.h>
@@ -26,14 +26,6 @@ jack_client_t* client;
 #ifndef M_PI
 #define M_PI (3.14159265)
 #endif
-
-#define TABLE_SIZE (200)
-typedef struct {
-  float sine[TABLE_SIZE];
-  int left_phase;
-  int right_phase;
-} paTestData;
-
 static void signal_handler(int sig) {
   jack_client_close(client);
   fprintf(stderr, "signal received, exiting ...\n");
@@ -53,8 +45,7 @@ static void signal_handler(int sig) {
  */
 
 int process(jack_nframes_t nframes, void* arg) {
-  jack_default_audio_sample_t *out1, *out2;
-  paTestData* data = (paTestData*)arg;
+  jack_default_audio_sample_t* out1;
   out1 =
       (jack_default_audio_sample_t*)jack_port_get_buffer(output_port1, nframes);
 
@@ -68,17 +59,21 @@ int process(jack_nframes_t nframes, void* arg) {
 
   float minAmplitude = 0;
 
+  uint32_t current_sample_value = 0;
+
   for (unsigned int i = 0; i < nframes; i++) {
-    maxValue = out1[0] > maxValue ? out1[0] : maxValue;
-    printf("raw value:%f\n", out1[i]);
-    printf("maxValue:%f\n", maxValue);
+    current_sample_value =
+        static_cast<uint32_t>(std::abs((out1[i]) * (0x7fffffff)));
+    maxValue =
+        current_sample_value > maxValue ? current_sample_value : maxValue;
   }
+  // Calculate the volume of the sound coming from the device.
   maxValue = std::min(maxValue, maxAmplitude);
-  captureValue = (maxValue) / maxAmplitude;
+  captureValue = static_cast<uint32_t>(maxValue) / maxAmplitude;
   // When we say "deviceLevel", what we really mean is Peak Amplitude.
   deviceLevel = captureValue - minAmplitude;
 
-  printf("level:%f\n", deviceLevel);
+  printf("level:%f\n", std::abs(deviceLevel));
 
   return 0;
 }
@@ -95,9 +90,6 @@ int main(int argc, char* argv[]) {
   const char* server_name = NULL;
   jack_options_t options = JackNullOption;
   jack_status_t status;
-  paTestData data;
-  int i;
-
   if (argc >= 2) { /* client name specified? */
     client_name = argv[1];
     if (argc >= 3) { /* server name specified? */
@@ -113,12 +105,6 @@ int main(int argc, char* argv[]) {
       client_name++;
     }
   }
-
-  for (i = 0; i < TABLE_SIZE; i++) {
-    data.sine[i] =
-        0.2 * (float)sin(((double)i / (double)TABLE_SIZE) * M_PI * 2.);
-  }
-  data.left_phase = data.right_phase = 0;
 
   /* open a client connection to the JACK server */
 
@@ -145,7 +131,7 @@ int main(int argc, char* argv[]) {
            there is work to be done.
         */
 
-  jack_set_process_callback(client, process, &data);
+  jack_set_process_callback(client, process, NULL);
 
   /* tell the JACK server to call `jack_shutdown()' if
            it ever shuts down, either entirely, or if it
