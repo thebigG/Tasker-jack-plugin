@@ -1,6 +1,6 @@
 /**
  * @brief This simple client gets the volume from the input sound device, such
- * as a audio interface. It essentially calculates Peak Amplitue of the Sin
+ * as an audio interface. It essentially calculates Peak Amplitue of the Sin
  * Waves(the audio samples).
  */
 
